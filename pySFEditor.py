@@ -1,7 +1,6 @@
 ### Text/Code Editor using Tkinter
-### TODO: 1) Implement show line numbers.
+### TODO:
 ###       2) Syntax highlighting, AutoComplete,...
-###       3) Change the style of notebook from pyttk
 ###       4) File browser
 ###       5) On changing tabs it must be able to focus on that line again
 
@@ -148,7 +147,7 @@ class EditorMainWindow(tk.Frame):
         self.root = root
         self.opentabs = []
         self.openfiles = {}
-        self.editornotebook = ttk.Notebook(self)
+        self.editornotebook = extraWidgets.CustomNotebook(self)
         self.editornotebook.enable_traversal()
         self.add_new_tab()
         ## Creating Icons for Menu Bar

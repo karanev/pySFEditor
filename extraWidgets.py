@@ -123,61 +123,90 @@ class TextLineNumbers(tk.Canvas):
             self.create_text(2,y,anchor="nw", text=linenum)
             i = self.textwidget.index("%s+1line" % i)
 
-### A notebook with close button
-class Notebook(ttk.Notebook):
-    def __init__(self, root):
-        ttk.Notebook.__init__(self, root, style=style)
-        self.root = root
-        imgdir = os.path.join(os.path.dirname(__file__), 'img')
-        i1 = tk.PhotoImage("img_close", file=os.path.join(imgdir, 'close.gif'))
-        i2 = tk.PhotoImage("img_closeactive",
-            file=os.path.join(imgdir, 'close_active.gif'))
-        i3 = tk.PhotoImage("img_closepressed",
-            file=os.path.join(imgdir, 'close_pressed.gif'))
+class CustomNotebook(ttk.Notebook):
+    """A ttk Notebook with close buttons on each tab"""
 
-        style = ttk.Style()
+    __initialized = False
 
-        style.element_create("close", "image", "img_close",
-            ("active", "pressed", "!disabled", "img_closepressed"),
-            ("active", "!disabled", "img_closeactive"), border=8, sticky='')
+    def __init__(self, *args, **kwargs):
+        if not self.__initialized:
+            self.__initialize_custom_style()
+            self.__inititialized = True
 
-        style.layout("ButtonNotebook", [("ButtonNotebook.client", {"sticky": "nswe"})])
-        style.layout("ButtonNotebook.Tab", [
-            ("ButtonNotebook.tab", {"sticky": "nswe", "children":
-                [("ButtonNotebook.padding", {"side": "top", "sticky": "nswe",
-                                             "children":
-                    [("ButtonNotebook.focus", {"side": "top", "sticky": "nswe",
-                                               "children":
-                        [("ButtonNotebook.label", {"side": "left", "sticky": ''}),
-                         ("ButtonNotebook.close", {"side": "left", "sticky": ''})]
-                    })]
-                })]
-            })]
-        )
-        self.root.bind_class("TNotebook", "<ButtonPress-1>", self.btn_press, True)
-        self.root.bind_class("TNotebook", "<ButtonRelease-1>", self.btn_release)
+        kwargs["style"] = "CustomNotebook"
+        ttk.Notebook.__init__(self, *args, **kwargs)
 
-    def btn_press(event):
-        x, y, widget = event.x, event.y, event.widget
-        elem = widget.identify(x, y)
-        index = widget.index("@%d,%d" % (x, y))
+        self._active = None
 
-        if "close" in elem:
-            widget.state(['pressed'])
-            widget.pressed_index = index
+        self.bind("<ButtonPress-1>", self.on_close_press, True)
+        self.bind("<ButtonRelease-1>", self.on_close_release)
 
-    def btn_release(event):
-        x, y, widget = event.x, event.y, event.widget
+    def on_close_press(self, event):
+        """Called when the button is pressed over the close button"""
 
-        if not widget.instate(['pressed']):
+        element = self.identify(event.x, event.y)
+
+        if "close" in element:
+            index = self.index("@%d,%d" % (event.x, event.y))
+            self.state(['pressed'])
+            self._active = index
+
+    def on_close_release(self, event):
+        """Called when the button is released over the close button"""
+        if not self.instate(['pressed']):
             return
 
-        elem =  widget.identify(x, y)
-        index = widget.index("@%d,%d" % (x, y))
+        element =  self.identify(event.x, event.y)
+        index = self.index("@%d,%d" % (event.x, event.y))
 
-        if "close" in elem and widget.pressed_index == index:
-            widget.forget(index)
-            widget.event_generate("<<NotebookClosedTab>>")
+        if "close" in element and self._active == index:
+            self.forget(index)
+            self.event_generate("<<NotebookTabClosed>>")
 
-        widget.state(["!pressed"])
-        widget.pressed_index = None
+        self.state(["!pressed"])
+        self._active = None
+
+    def __initialize_custom_style(self):
+        style = ttk.Style()
+        self.images = (
+            tk.PhotoImage("img_close", data='''
+                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+                '''),
+            tk.PhotoImage("img_closeactive", data='''
+                R0lGODlhCAAIAMIEAAAAAP/SAP/bNNnZ2cbGxsbGxsbGxsbGxiH5BAEKAAQALAAA
+                AAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU5kEJADs=
+                '''),
+            tk.PhotoImage("img_closepressed", data='''
+                R0lGODlhCAAIAMIEAAAAAOUqKv9mZtnZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+            ''')
+        )
+
+        style.element_create("close", "image", "img_close",
+                            ("active", "pressed", "!disabled", "img_closepressed"),
+                            ("active", "!disabled", "img_closeactive"), border=8, sticky='')
+        style.layout("CustomNotebook", [("CustomNotebook.client", {"sticky": "nswe"})])
+        style.layout("CustomNotebook.Tab", [
+            ("CustomNotebook.tab", {
+                "sticky": "nswe", 
+                "children": [
+                    ("CustomNotebook.padding", {
+                        "side": "top", 
+                        "sticky": "nswe",
+                        "children": [
+                            ("CustomNotebook.focus", {
+                                "side": "top", 
+                                "sticky": "nswe",
+                                "children": [
+                                    ("CustomNotebook.label", {"side": "left", "sticky": ''}),
+                                    ("CustomNotebook.close", {"side": "left", "sticky": ''}),
+                                ]
+                            })
+                        ]
+                    })
+                ]
+            })
+        ])
