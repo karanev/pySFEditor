@@ -5,15 +5,10 @@
 ###       4) File browser
 ###       5) On changing tabs it must be able to focus on that line again
 
-try:
-    import Tkinter as tk
-except ImportError:
-    import tkinter as tk
-
-import ScrolledText
-import tkFileDialog
-import tkMessageBox
-import ttk
+import tkinter as tk
+import tkinter.filedialog as filedialog
+import tkinter.messagebox as messagebox
+import tkinter.ttk as ttk
 import os
 import sys
 
@@ -34,10 +29,23 @@ class Editor(tk.Frame):
         self.config_tags()
 
     def build_editor(self):
-        """Builds the Editor ->ScrolledText"""
-        self.textpad = ScrolledText.ScrolledText(self, undo=True)
+        """Builds the Editor -> Line based custom scrolled text editor"""
+        self.textpad = extraWidgets.LineBasedEditor(self)
+        self.linenumbers = extraWidgets.TextLineNumbers(self, width=25)
+        self.linenumbers.attach(self.textpad)
+        self.vsb = tk.Scrollbar(self, orient="vertical", command=self.textpad.yview)
+        
+        self.textpad.configure(yscrollcommand=self.vsb.set)
+        self.textpad.bind("<<Change>>", self._on_change)
+        self.textpad.bind("<Configure>", self._on_change)
+
+        self.vsb.pack(side="right", fill="y")
+        self.linenumbers.pack(side="left", fill="y")
         self.textpad.pack(expand=tk.YES, fill=tk.BOTH)
         self.textpad.focus_set()
+    
+    def _on_change(self, event=None):
+        self.linenumbers.redraw()
 
     def cmenupopup(self, event):
         self.contextmenu.tk_popup(event.x_root, event.y_root)
@@ -76,7 +84,7 @@ class Editor(tk.Frame):
         """Set the modified state"""
         self.__modified.set(state)
 
-    def get_modified():
+    def get_modified(self):
         """Get the modified state"""
         return self.__modified.get()
 
@@ -138,11 +146,11 @@ class EditorMainWindow(tk.Frame):
     def __init__(self, root, *args, **kwargs):
         tk.Frame.__init__(self, root, *args, **kwargs)
         self.root = root
-        self.openeditors = []
+        self.opentabs = []
         self.openfiles = {}
         self.editornotebook = ttk.Notebook(self)
         self.editornotebook.enable_traversal()
-        self.add_new_editor()
+        self.add_new_tab()
         ## Creating Icons for Menu Bar
         # File Menu Icons
         self.newicon = tk.PhotoImage(file="icons/new_file.gif")
@@ -167,8 +175,8 @@ class EditorMainWindow(tk.Frame):
         self.filemenu = tk.Menu(self.menubar, tearoff=0)
         self.filemenu.add_command(label="New", accelerator="Ctrl+N",
                 compound="left", image=self.newicon, underline=0,
-                command=self.add_new_editor)
-        self.root.bind("<Control-Key-n>", self.add_new_editor)
+                command=self.add_new_tab)
+        self.root.bind("<Control-Key-n>", self.add_new_tab)
         self.filemenu.add_command(label="Open", accelerator="Ctrl+O",
                 compound="left", image=self.openicon, underline=0, command=self.open_file)
         self.root.bind("<Control-Key-o>", self.open_file)
@@ -215,7 +223,7 @@ class EditorMainWindow(tk.Frame):
         self.__showlnnum = tk.IntVar()
         self.__showlnnum.set(1)
         self.viewmenu.add_checkbutton(label="Show Line Number",
-                variable=self.__showlnnum)
+                variable=self.__showlnnum, command=self.toggle_lnnum)
         self.__showinfobar = tk.IntVar()
         self.__showinfobar.set(1)
         self.viewmenu.add_checkbutton(label="Show Info Bar at Bottom",
@@ -259,7 +267,7 @@ class EditorMainWindow(tk.Frame):
         #ttk.Sizegrip(self.infobar).pack(side="right") because it produces a lag
         self.__lncolumn = tk.Label(self.infobar, text="Row 1, Column 1")
         self.__lncolumn.pack(side="right")
-        currenteditor = self.get_current_editor()
+        #currenteditor = self.get_current_editor()
         self.lncolumn_update()
 
     def generate_event(self, name):
@@ -282,6 +290,9 @@ class EditorMainWindow(tk.Frame):
             self.infobar.pack_forget()
         else:
             self.infobar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def toggle_lnnum(self):
+        pass
 
     def highlight(self, editor):
         if (self.__hltcurln.get()):
@@ -294,33 +305,35 @@ class EditorMainWindow(tk.Frame):
         currenteditor = self.get_current_editor()
         self.highlight(currenteditor) if self.__hltcurln.get() else self.undo_highlight(currenteditor)
 
-    def add_new_editor(self, event=None, filename=None):
-        editor = Editor(self.editornotebook)
-        self.openeditors.append(editor)
+    def add_new_tab(self, event=None, filename=None):
+        newTab = tk.Frame(self.editornotebook)
+        newTab.editor = Editor(newTab)
+        self.opentabs.append(newTab)
         if not filename:
-            editor.set_filename("Untitled")
+            newTab.editor.set_filename("Untitled")
         else:
             try:
                 contents = ""
                 with open(filename, 'r') as f:
                     contents += f.read()
             except:
-                tkMessageBox.showerror("Could not read file!")
-            editor.set_filename(filename)
-            editor.set_saved(True)
-            editor.set_text_content(contents)
-            editor.set_modified(False)
-        self.editornotebook.add(editor, sticky="NSEW")
-        self.editornotebook.tab(editor, text=os.path.basename(editor.get_filename()))
-        self.select_editor(editor)
-        return editor
+                messagebox.showerror("Could not read file!")
+            newTab.editor.set_filename(filename)
+            newTab.editor.set_saved(True)
+            newTab.editor.set_text_content(contents)
+            newTab.editor.set_modified(False)
+
+        newTab.editor.pack(fill="both", expand=True)
+        self.editornotebook.add(newTab, sticky="NSEW")
+        self.editornotebook.tab(newTab, text=os.path.basename(newTab.editor.get_filename()))
+        self.select_tab(newTab)
 
     def open_file(self, event=None):
-        filenameopen = tkFileDialog.askopenfilename(defaultextension=".txt",
+        filenameopen = filedialog.askopenfilename(defaultextension=".txt",
                 filetypes=[("All Files","*.*"),("Text Documents","*.txt")])
-        # tkFileDialog.askopenfilename() -> "" if no file is selected
+        # filedialog.askopenfilename() -> "" if no file is selected
         if filenameopen != "":
-            self.add_new_editor(filename = filenameopen)
+            self.add_new_tab(filename = filenameopen)
 
     def save_file(self, event=None):
         currenteditor = self.get_current_editor()
@@ -333,7 +346,7 @@ class EditorMainWindow(tk.Frame):
 
     def save_as(self, event=None):
         currenteditor = self.get_current_editor()
-        filename = tkFileDialog.asksaveasfilename(initialfile="Untitled.txt",
+        filename = filedialog.asksaveasfilename(initialfile="Untitled.txt",
                 defaultextension=".txt", filetypes=[("All Files","*.*"),\
                 ("Text Documents","*.txt")])
         if not filename:
@@ -346,14 +359,18 @@ class EditorMainWindow(tk.Frame):
         currenteditor.set_modified(False)
         return True
 
-    def select_editor(self, editor=None):
-        return self.editornotebook.select(editor)
+    def select_tab(self, tab=None):
+        return self.editornotebook.select(tab)
 
-    def get_current_editor(self):
+    def get_current_tab(self):
         """
             Grab the current focused editor instance.
         """
-        return self.openeditors[self.editornotebook.index(self.select_editor())] if self.openeditors else None
+        return self.opentabs[self.editornotebook.index(self.select_tab())] if self.opentabs else None
+
+    def get_current_editor(self):
+        current_tab = self.get_current_tab()
+        return current_tab.editor
 
     def __on_tab_change(self, event=None):
         try:#in my opinion none of exception handling will be needed in this fn
