@@ -347,8 +347,8 @@ class EditorMainWindow(tk.Frame):
         currenttab = self.get_current_tab()
         currenteditor = self.get_current_editor()
         filename = filedialog.asksaveasfilename(initialfile="Untitled.txt",
-                defaultextension="", filetypes=[("All Files","*.*"),\
-                ("Text Documents","*.txt")])
+            filetypes=[("All Files","*.*"), ("Text Documents","*.txt")])
+        print(filename)
         if not filename:
             return False
         currenteditor.set_filename(filename)
