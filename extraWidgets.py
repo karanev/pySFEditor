@@ -1,11 +1,7 @@
 ### TODO: 1) Pressing enter must start search
 
-try:
-    import Tkinter as tk
-except ImportError:
-    import tkinter as tk
-
-import ttk
+import tkinter as tk
+import tkinter.ttk as ttk
 import os
 
 class TextFindWidget(tk.Toplevel):
@@ -73,61 +69,144 @@ class TextReplaceWidget(tk.Toplevel):
     def close_replace(self):
         self.destroy()
 
-### A notebook with close button
-class Notebook(ttk.Notebook):
-    def __init__(self, root):
-        ttk.Notebook.__init__(self, root, style=style)
-        self.root = root
-        imgdir = os.path.join(os.path.dirname(__file__), 'img')
-        i1 = tk.PhotoImage("img_close", file=os.path.join(imgdir, 'close.gif'))
-        i2 = tk.PhotoImage("img_closeactive",
-            file=os.path.join(imgdir, 'close_active.gif'))
-        i3 = tk.PhotoImage("img_closepressed",
-            file=os.path.join(imgdir, 'close_pressed.gif'))
+class LineBasedEditor(tk.Text):
+    def __init__(self, *args, **kwargs):
+        tk.Text.__init__(self, *args, **kwargs)
 
-        style = ttk.Style()
+        # Tcl code to intercept changes to the text widget and generate an event for us
+        # will generate a <<Change>> event whenever text is inserted or deleted, or when
+        # the view is scrolled
+        self.tk.eval('''
+            proc widget_proxy {widget widget_command args} {
 
-        style.element_create("close", "image", "img_close",
-            ("active", "pressed", "!disabled", "img_closepressed"),
-            ("active", "!disabled", "img_closeactive"), border=8, sticky='')
+                # call the real tk widget command with the real args
+                set result [uplevel [linsert $args 0 $widget_command]]
 
-        style.layout("ButtonNotebook", [("ButtonNotebook.client", {"sticky": "nswe"})])
-        style.layout("ButtonNotebook.Tab", [
-            ("ButtonNotebook.tab", {"sticky": "nswe", "children":
-                [("ButtonNotebook.padding", {"side": "top", "sticky": "nswe",
-                                             "children":
-                    [("ButtonNotebook.focus", {"side": "top", "sticky": "nswe",
-                                               "children":
-                        [("ButtonNotebook.label", {"side": "left", "sticky": ''}),
-                         ("ButtonNotebook.close", {"side": "left", "sticky": ''})]
-                    })]
-                })]
-            })]
-        )
-        self.root.bind_class("TNotebook", "<ButtonPress-1>", self.btn_press, True)
-        self.root.bind_class("TNotebook", "<ButtonRelease-1>", self.btn_release)
+                # generate the event for certain types of commands
+                if {([lindex $args 0] in {insert replace delete}) ||
+                    ([lrange $args 0 2] == {mark set insert}) || 
+                    ([lrange $args 0 1] == {xview moveto}) ||
+                    ([lrange $args 0 1] == {xview scroll}) ||
+                    ([lrange $args 0 1] == {yview moveto}) ||
+                    ([lrange $args 0 1] == {yview scroll})} {
 
-    def btn_press(event):
-        x, y, widget = event.x, event.y, event.widget
-        elem = widget.identify(x, y)
-        index = widget.index("@%d,%d" % (x, y))
+                    event generate  $widget <<Change>> -when tail
+                }
 
-        if "close" in elem:
-            widget.state(['pressed'])
-            widget.pressed_index = index
+                # return the result from the real widget command
+                return $result
+            }
+            ''')
+        self.tk.eval('''
+            rename {widget} _{widget}
+            interp alias {{}} ::{widget} {{}} widget_proxy {widget} _{widget}
+        '''.format(widget=str(self)))
 
-    def btn_release(event):
-        x, y, widget = event.x, event.y, event.widget
+class TextLineNumbers(tk.Canvas):
+    def __init__(self, *args, **kwargs):
+        tk.Canvas.__init__(self, *args, **kwargs)
+        self.textwidget = None
 
-        if not widget.instate(['pressed']):
+    def attach(self, text_widget):
+        self.textwidget = text_widget
+
+    def redraw(self, *args):
+        '''redraw line numbers'''
+        self.delete("all")
+
+        i = self.textwidget.index("@0,0")
+        while True :
+            dline= self.textwidget.dlineinfo(i)
+            if dline is None: break
+            y = dline[1]
+            linenum = str(i).split(".")[0]
+            self.create_text(2,y,anchor="nw", text=linenum)
+            i = self.textwidget.index("%s+1line" % i)
+
+class CustomNotebook(ttk.Notebook):
+    """A ttk Notebook with close buttons on each tab"""
+
+    __initialized = False
+
+    def __init__(self, *args, **kwargs):
+        if not self.__initialized:
+            self.__initialize_custom_style()
+            self.__inititialized = True
+
+        kwargs["style"] = "CustomNotebook"
+        ttk.Notebook.__init__(self, *args, **kwargs)
+
+        self._active = None
+
+        self.bind("<ButtonPress-1>", self.on_close_press, True)
+        self.bind("<ButtonRelease-1>", self.on_close_release)
+
+    def on_close_press(self, event):
+        """Called when the button is pressed over the close button"""
+
+        element = self.identify(event.x, event.y)
+
+        if "close" in element:
+            index = self.index("@%d,%d" % (event.x, event.y))
+            self.state(['pressed'])
+            self._active = index
+
+    def on_close_release(self, event):
+        """Called when the button is released over the close button"""
+        if not self.instate(['pressed']):
             return
 
-        elem =  widget.identify(x, y)
-        index = widget.index("@%d,%d" % (x, y))
+        element =  self.identify(event.x, event.y)
+        index = self.index("@%d,%d" % (event.x, event.y))
 
-        if "close" in elem and widget.pressed_index == index:
-            widget.forget(index)
-            widget.event_generate("<<NotebookClosedTab>>")
+        if "close" in element and self._active == index:
+            self.forget(index)
+            self.event_generate("<<NotebookTabClosed>>")
 
-        widget.state(["!pressed"])
-        widget.pressed_index = None
+        self.state(["!pressed"])
+        self._active = None
+
+    def __initialize_custom_style(self):
+        style = ttk.Style()
+        self.images = (
+            tk.PhotoImage("img_close", data='''
+                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+                '''),
+            tk.PhotoImage("img_closeactive", data='''
+                R0lGODlhCAAIAMIEAAAAAP/SAP/bNNnZ2cbGxsbGxsbGxsbGxiH5BAEKAAQALAAA
+                AAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU5kEJADs=
+                '''),
+            tk.PhotoImage("img_closepressed", data='''
+                R0lGODlhCAAIAMIEAAAAAOUqKv9mZtnZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+            ''')
+        )
+
+        style.element_create("close", "image", "img_close",
+                            ("active", "pressed", "!disabled", "img_closepressed"),
+                            ("active", "!disabled", "img_closeactive"), border=8, sticky='')
+        style.layout("CustomNotebook", [("CustomNotebook.client", {"sticky": "nswe"})])
+        style.layout("CustomNotebook.Tab", [
+            ("CustomNotebook.tab", {
+                "sticky": "nswe", 
+                "children": [
+                    ("CustomNotebook.padding", {
+                        "side": "top", 
+                        "sticky": "nswe",
+                        "children": [
+                            ("CustomNotebook.focus", {
+                                "side": "top", 
+                                "sticky": "nswe",
+                                "children": [
+                                    ("CustomNotebook.label", {"side": "left", "sticky": ''}),
+                                    ("CustomNotebook.close", {"side": "left", "sticky": ''}),
+                                ]
+                            })
+                        ]
+                    })
+                ]
+            })
+        ])
