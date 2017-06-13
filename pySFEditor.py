@@ -344,15 +344,16 @@ class EditorMainWindow(tk.Frame):
             currenteditor.set_modified(False)
 
     def save_as(self, event=None):
+        currenttab = self.get_current_tab()
         currenteditor = self.get_current_editor()
         filename = filedialog.asksaveasfilename(initialfile="Untitled.txt",
-                defaultextension=".txt", filetypes=[("All Files","*.*"),\
+                defaultextension="", filetypes=[("All Files","*.*"),\
                 ("Text Documents","*.txt")])
         if not filename:
             return False
         currenteditor.set_filename(filename)
         currenteditor.set_saved(True)
-        self.editornotebook.tab(currenteditor, text=filename)
+        self.editornotebook.tab(currenttab, text=os.path.basename(filename))
         with open(currenteditor.get_filename(), 'w') as f:
             f.write(currenteditor.get_text_content().rstrip())
         currenteditor.set_modified(False)
