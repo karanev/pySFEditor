@@ -15,7 +15,8 @@ import sys
 import extraWidgets
 
 from tkinter import font
-from pygments.lexers.python import PythonLexer
+from pygments.lexers.resource import ResourceLexer
+from pygments.lexers import get_lexer_for_filename
 from pygments.styles import get_style_by_name   
 
 class Editor(tk.Frame):
@@ -154,8 +155,14 @@ class Editor(tk.Frame):
         self.recolorize()
 
     def set_lexer(self):
-        self.lexer = PythonLexer()
-        # TODO : Guess Lexer from Filename
+        self.filename = self.get_filename()
+        if(self.filename == None):
+            # TODO : Guess Lexer from content if filename is None
+            # self.lexer = guess_lexer(self.get_text_content)
+            # Currently deafult is *.txt lexer
+            self.lexer = ResourceLexer()
+        else:
+            self.lexer = get_lexer_for_filename(self.filename)
 
     #Function to create tags for highlight
     def create_tags(self):
