@@ -3,6 +3,7 @@
 ###       2) Syntax highlighting, AutoComplete,...
 ###       4) File browser
 ###       5) On changing tabs it must be able to focus on that line again
+###       6) Get syntax highlight color scheme from file type
 
 import tkinter as tk
 import tkinter.filedialog as filedialog
@@ -12,6 +13,10 @@ import os
 import sys
 
 import extraWidgets
+
+from tkinter import font
+from pygments.lexers.python import PythonLexer
+from pygments.styles import get_style_by_name   
 
 class Editor(tk.Frame):
     def __init__(self, root, *args, **kwargs):
@@ -26,6 +31,8 @@ class Editor(tk.Frame):
         root.bind_class("Text", "<Control-A>", self.select_all)
         root.bind_class("Text", "<Control-a>", self.select_all)
         self.config_tags()
+        self.create_tags()
+        self.set_lexer()
 
     def build_editor(self):
         """Builds the Editor -> Line based custom scrolled text editor"""
@@ -139,6 +146,82 @@ class Editor(tk.Frame):
     def config_tags(self):
         self.textpad.tag_config("Highlight", background="#D1D4D1")
         self.textpad.tag_config("match", foreground="red", background="yellow")
+
+    def event_key(self, event):
+        keycode = event.keycode
+        char = event.char
+        # print("\tkeycode %s - char %s" % (keycode, repr(char)))
+        self.recolorize()
+
+    def set_lexer(self):
+        self.lexer = PythonLexer()
+        # TODO : Guess Lexer from Filename
+
+    #Function to create tags for highlight
+    def create_tags(self):
+        bold_font = font.Font(self.textpad, self.textpad.cget("font"))
+        bold_font.configure(weight=font.BOLD)
+
+        italic_font = font.Font(self.textpad, self.textpad.cget("font"))
+        italic_font.configure(slant=font.ITALIC)
+
+        bold_italic_font = font.Font(self.textpad, self.textpad.cget("font"))
+        bold_italic_font.configure(weight=font.BOLD, slant=font.ITALIC)
+
+        style = get_style_by_name('default')
+        for ttype, ndef in style:
+            # print(ttype, ndef)
+            tag_font = None
+            if ndef['bold'] and ndef['italic']:
+                tag_font = bold_italic_font
+            elif ndef['bold']:
+                tag_font = bold_font
+            elif ndef['italic']:
+                tag_font = italic_font
+
+            if ndef['color']:
+                foreground = "#%s" % ndef['color']
+            else:
+                foreground = None
+
+            self.textpad.tag_configure(str(ttype), foreground=foreground, font=tag_font)
+
+    #Function to recolorize according to tags created
+    # Currently this function is very bad as it recolorizes the whole document from
+    # start at every key stroke
+    def recolorize(self):
+        # print("recolorize")
+        code = self.textpad.get("1.0", "end-1c")
+        tokensource = self.lexer.get_tokens(code)
+
+        start_line=1
+        start_index = 0
+        end_line=1
+        end_index = 0
+        for ttype, value in tokensource:
+            if "\n" in value:
+                end_line += value.count("\n")
+                end_index = len(value.rsplit("\n",1)[1])
+            else:
+                end_index += len(value)
+
+            if value not in (" ", "\n"):
+                index1 = "%s.%s" % (start_line, start_index)
+                index2 = "%s.%s" % (end_line, end_index)
+
+                for tagname in self.textpad.tag_names(index1): # FIXME
+                    self.textpad.tag_remove(tagname, index1, index2)
+
+                # print(ttype, repr(value), index1, index2)
+                self.textpad.tag_add(str(ttype), index1, index2)
+
+            start_line = end_line
+            start_index = end_index
+
+    #Function to recolorize 
+    def removecolors(self):
+        for tag in self.tagdefs:
+            self.textpad.tag_remove(tag, "1.0", "end")
 
 class EditorMainWindow(tk.Frame):
     #binding is working with self.root.bind
@@ -298,8 +381,10 @@ class EditorMainWindow(tk.Frame):
             editor.textpad.tag_remove("Highlight", "1.0", "end")
             editor.textpad.tag_add("Highlight", "insert linestart", "insert lineend +1c")
         editor.textpad.after(50, lambda:self.highlight(editor))
+
     def undo_highlight(self, editor):
         editor.textpad.tag_remove("Highlight", "1.0", "end")
+
     def toggle_highlight(self, event=None):
         currenteditor = self.get_current_editor()
         self.highlight(currenteditor) if self.__hltcurln.get() else self.undo_highlight(currenteditor)
@@ -325,6 +410,7 @@ class EditorMainWindow(tk.Frame):
         newTab.editor.pack(fill="both", expand=True)
         self.editornotebook.add(newTab, sticky="NSEW")
         self.editornotebook.tab(newTab, text=os.path.basename(newTab.editor.get_filename()))
+        self.root.bind("<Key>", newTab.editor.event_key)
         self.select_tab(newTab)
 
     def open_file(self, event=None):
