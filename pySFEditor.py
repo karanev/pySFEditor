@@ -426,6 +426,9 @@ class EditorMainWindow(tk.Frame):
         # filedialog.askopenfilename() -> "" if no file is selected
         if filenameopen != "":
             self.add_new_tab(filename = filenameopen)
+        currenteditor = self.get_current_editor()
+        currenteditor.set_lexer()
+        currenteditor.recolorize()
 
     def save_file(self, event=None):
         currenteditor = self.get_current_editor()
@@ -440,8 +443,9 @@ class EditorMainWindow(tk.Frame):
         currenttab = self.get_current_tab()
         currenteditor = self.get_current_editor()
         filename = filedialog.asksaveasfilename(initialfile="Untitled.txt",
-                defaultextension="", filetypes=[("All Files","*.*"),\
+                filetypes=[("All Files","*.*"),\
                 ("Text Documents","*.txt")])
+        # print(filename)
         if not filename:
             return False
         currenteditor.set_filename(filename)
@@ -450,6 +454,8 @@ class EditorMainWindow(tk.Frame):
         with open(currenteditor.get_filename(), 'w') as f:
             f.write(currenteditor.get_text_content().rstrip())
         currenteditor.set_modified(False)
+        currenteditor.set_lexer()
+        currenteditor.recolorize()
         return True
 
     def select_tab(self, tab=None):
