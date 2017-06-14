@@ -390,7 +390,7 @@ class EditorMainWindow(tk.Frame):
         if (self.__hltcurln.get()):
             editor.textpad.tag_remove("HighlightCurrentLine", "1.0", "end")
             editor.textpad.tag_add("HighlightCurrentLine", "insert linestart", "insert lineend +1c")
-        editor.textpad.after(50, lambda:self.highlight(editor))
+        editor.textpad.after(10, lambda:self.highlight(editor))
 
     def undo_highlight(self, editor):
         editor.textpad.tag_remove("HighlightCurrentLine", "1.0", "end")
