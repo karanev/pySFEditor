@@ -37,7 +37,7 @@ class Editor(tk.Frame):
 
     def build_editor(self):
         """Builds the Editor -> Line based custom scrolled text editor"""
-        self.textpad = extraWidgets.LineBasedEditor(self)
+        self.textpad = extraWidgets.LineBasedEditor(self, undo=True)
         self.linenumbers = extraWidgets.TextLineNumbers(self, width=25)
         self.linenumbers.attach(self.textpad)
         self.vsb = tk.Scrollbar(self, orient="vertical", command=self.textpad.yview)
