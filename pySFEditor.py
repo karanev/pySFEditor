@@ -21,7 +21,6 @@ from pygments.styles import get_style_by_name
 
 class Editor(tk.Frame):
     def __init__(self, root, *args, **kwargs):
-        # Unable to understand why self is necessary as first argument
         tk.Frame.__init__(self, root, *args, **kwargs)
         self.root = root
         self.__filename = None
@@ -112,7 +111,7 @@ class Editor(tk.Frame):
         return (True if (len(get_text_content()) > 1) else False)
 
     def search_for(self, query, caseinsensitive):
-        self.textpad.tag_remove("match", "1.0", "end")
+        self.textpad.tag_remove("Match", "1.0", "end")
         count = 0
         if query:
             pos = "1.0"
@@ -122,13 +121,13 @@ class Editor(tk.Frame):
                 if not pos:
                     break
                 lastpos = pos + '+' + str(len(query)) + 'c'
-                self.textpad.tag_add("match", pos, lastpos)
+                self.textpad.tag_add("Match", pos, lastpos)
                 count += 1
                 pos = lastpos
         return count
 
     def replace_for(self, replace, replacewith, caseinsensitive):
-        self.textpad.tag_remove("match", "1.0", "end")
+        self.textpad.tag_remove("Match", "1.0", "end")
         count = 0
         if replace:
             pos ="1.0"
@@ -145,8 +144,12 @@ class Editor(tk.Frame):
         return count
 
     def config_tags(self):
-        self.textpad.tag_config("Highlight", background="#D1D4D1")
-        self.textpad.tag_config("match", foreground="red", background="yellow")
+        self.textpad.tag_config("HighlightCurrentLine", background="#D1D1D1")
+        # Lowering highlightcurrentline tag priority because it was overriding sel
+        # tag as sel tag was created before it and highlight current line is called
+        # every 50ms
+        self.textpad.tag_lower("HighlightCurrentLine")
+        self.textpad.tag_config("Match", foreground="red", background="yellow")
 
     def event_key(self, event):
         keycode = event.keycode
@@ -385,12 +388,12 @@ class EditorMainWindow(tk.Frame):
 
     def highlight(self, editor):
         if (self.__hltcurln.get()):
-            editor.textpad.tag_remove("Highlight", "1.0", "end")
-            editor.textpad.tag_add("Highlight", "insert linestart", "insert lineend +1c")
+            editor.textpad.tag_remove("HighlightCurrentLine", "1.0", "end")
+            editor.textpad.tag_add("HighlightCurrentLine", "insert linestart", "insert lineend +1c")
         editor.textpad.after(50, lambda:self.highlight(editor))
 
     def undo_highlight(self, editor):
-        editor.textpad.tag_remove("Highlight", "1.0", "end")
+        editor.textpad.tag_remove("HighlightCurrentLine", "1.0", "end")
 
     def toggle_highlight(self, event=None):
         currenteditor = self.get_current_editor()
