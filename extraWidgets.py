@@ -137,6 +137,7 @@ class CustomNotebook(ttk.Notebook):
         ttk.Notebook.__init__(self, *args, **kwargs)
 
         self._active = None
+        self.justClosed = None
 
         self.bind("<ButtonPress-1>", self.on_close_press, True)
         self.bind("<ButtonRelease-1>", self.on_close_release)
@@ -161,8 +162,8 @@ class CustomNotebook(ttk.Notebook):
 
         if "close" in element and self._active == index:
             self.forget(index)
+            self.justClosed = index
             self.event_generate("<<NotebookTabClosed>>")
-
         self.state(["!pressed"])
         self._active = None
 

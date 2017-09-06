@@ -239,7 +239,6 @@ class EditorMainWindow(tk.Frame):
         tk.Frame.__init__(self, root, *args, **kwargs)
         self.root = root
         self.opentabs = []
-        self.openfiles = {}
         self.editornotebook = extraWidgets.CustomNotebook(self)
         self.editornotebook.enable_traversal()
         self.add_new_tab()
@@ -256,6 +255,7 @@ class EditorMainWindow(tk.Frame):
         self.redoicon = tk.PhotoImage(file="icons/redo.gif")
         self.build_menubar()
         self.editornotebook.bind('<<NotebookTabChanged>>', self.__on_tab_change)
+        self.editornotebook.bind('<<NotebookTabClosed>>', self.__tab_closed)
         self.editornotebook.pack(side=tk.TOP, expand=tk.YES, fill=tk.BOTH)
         self.build_infobar()
 
@@ -457,6 +457,7 @@ class EditorMainWindow(tk.Frame):
         currenteditor.set_modified(False)
         currenteditor.set_lexer()
         currenteditor.recolorize()
+        self.root.title(currenteditor.get_filename())
         return True
 
     def select_tab(self, tab=None):
@@ -476,11 +477,14 @@ class EditorMainWindow(tk.Frame):
         try:#in my opinion none of exception handling will be needed in this fn
             currenteditor = self.get_current_editor()
             if not currenteditor:
-                sys.stderr.write("__on_tab_change called without an open editor"
-                        )
+                sys.stderr.write("__on_tab_change called without an open editor")
             self.root.title(currenteditor.get_filename())# Omitted wm method
         except:
             sys.stderr.write("There is no editor selected :(")
+
+    def __tab_closed(self, event=None):
+        index = self.editornotebook.justClosed
+        del self.opentabs[index]
 
     def find_text(self, event=None):
         currenteditor = self.get_current_editor()
